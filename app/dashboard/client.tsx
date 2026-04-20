@@ -139,7 +139,7 @@ export default function DashboardClient({
         )}
 
         {!onCooldown && !batchUrl && (
-          <p className="text-center text-green-500">Ready to go.</p>
+          <p className="text-center text-green-500">Ready. ⚡ (oauth build)</p>
         )}
 
         {batchUrl && (

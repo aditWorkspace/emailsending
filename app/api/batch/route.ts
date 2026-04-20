@@ -16,7 +16,7 @@ const COOLDOWN_HOURS = 12;
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
-export async function POST() {
+export async function POST(req: Request) {
   const session = await getSession();
   const pin = session.pin;
   const user = pin ? getUser(pin) : undefined;
@@ -27,6 +27,9 @@ export async function POST() {
       { status: 401 },
     );
   }
+
+  const body = await req.json().catch(() => ({} as { testMode?: boolean }));
+  const testMode = body?.testMode === true;
 
   const now = new Date();
 
@@ -65,6 +68,16 @@ export async function POST() {
       { ok: false, reason: 'sheet_error', detail },
       { status: 500 },
     );
+  }
+
+  if (testMode) {
+    console.log('[batch] TEST MODE — skipping pointer advance and cooldown', { pin });
+    return NextResponse.json({
+      ok: true,
+      url,
+      nextAvailable: now.toISOString(),
+      remaining: EMAILS.length - pointer,
+    });
   }
 
   await setPointer(pointer + BATCH_SIZE);

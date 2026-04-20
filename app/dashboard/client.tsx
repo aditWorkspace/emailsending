@@ -28,6 +28,7 @@ export default function DashboardClient({
   const [nextAvailable, setNextAvailable] = useState<string | null>(cooldownIso);
   const [remaining, setRemaining] = useState(initialRemaining);
   const [now, setNow] = useState<Date | null>(null);
+  const [testMode, setTestMode] = useState(true);
 
   useEffect(() => {
     setNow(new Date());
@@ -43,7 +44,11 @@ export default function DashboardClient({
     setError(null);
     setBatchUrl(null);
     try {
-      const res = await fetch('/api/batch', { method: 'POST' });
+      const res = await fetch('/api/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ testMode }),
+      });
       const data: BatchResponse = await res.json();
 
       if (data.ok) {
@@ -97,12 +102,27 @@ export default function DashboardClient({
           </button>
         </div>
 
+        {/* TEST MODE: remove this label block before sharing with Srijay/Asim */}
+        <label className="flex items-center gap-2 text-sm text-yellow-400 bg-yellow-950/40 border border-yellow-900 rounded px-3 py-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={testMode}
+            onChange={(e) => setTestMode(e.target.checked)}
+            className="accent-yellow-400"
+          />
+          Test mode — don&apos;t consume emails or start cooldown
+        </label>
+
         <button
           onClick={getBatch}
           disabled={loading || onCooldown}
           className="bg-white text-black font-semibold py-6 rounded text-lg disabled:opacity-40 transition"
         >
-          {loading ? 'Preparing your batch...' : 'Give me my batch of 300'}
+          {loading
+            ? 'Preparing your batch...'
+            : testMode
+              ? 'Give me a test batch of 300'
+              : 'Give me my batch of 300'}
         </button>
 
         {onCooldown && cooldownDate && (

@@ -1,26 +1,20 @@
 import { google } from 'googleapis';
 import type { EmailRow } from './emails';
 
-function getCredentials() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON env var is not set');
+const OWNER_EMAIL = 'aditmittal@berkeley.edu';
 
-  // Accept either base64-encoded JSON or raw JSON.
-  let text = raw.trim();
-  if (!text.startsWith('{')) {
-    text = Buffer.from(text, 'base64').toString('utf-8');
+function getOAuth2Client() {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error(
+      'Missing OAuth env vars: set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, and GOOGLE_OAUTH_REFRESH_TOKEN (see README).',
+    );
   }
-  return JSON.parse(text);
-}
-
-function getAuth() {
-  return new google.auth.GoogleAuth({
-    credentials: getCredentials(),
-    scopes: [
-      'https://www.googleapis.com/auth/spreadsheets',
-      'https://www.googleapis.com/auth/drive',
-    ],
-  });
+  const client = new google.auth.OAuth2(clientId, clientSecret);
+  client.setCredentials({ refresh_token: refreshToken });
+  return client;
 }
 
 export interface CreateBatchSheetInput {
@@ -37,51 +31,34 @@ export interface CreateBatchSheetResult {
 export async function createBatchSheet(
   input: CreateBatchSheetInput,
 ): Promise<CreateBatchSheetResult> {
-  const sharedDriveId = process.env.SHARED_DRIVE_ID;
-  if (!sharedDriveId) {
-    throw new Error(
-      'SHARED_DRIVE_ID env var is not set. Create a Shared Drive, add the service account as Content Manager, and set SHARED_DRIVE_ID to the drive ID (see README).',
-    );
-  }
-
-  const auth = getAuth();
+  const auth = getOAuth2Client();
   const sheets = google.sheets({ version: 'v4', auth });
   const drive = google.drive({ version: 'v3', auth });
 
   const today = new Date().toISOString().slice(0, 10);
   const title = `${input.userName} - ${today} - Batch`;
 
-  console.log('[sheets] creating file in shared drive', { title, sharedDriveId });
+  console.log('[sheets] creating spreadsheet as OAuth user', { title });
 
-  // 1. Create the file via Drive API inside the Shared Drive. Files in Shared
-  //    Drives are owned by the drive itself, so the service account's
-  //    zero-storage-quota doesn't block creation.
-  const createdFile = await drive.files.create({
+  const created = await sheets.spreadsheets.create({
     requestBody: {
-      name: title,
-      mimeType: 'application/vnd.google-apps.spreadsheet',
-      parents: [sharedDriveId],
+      properties: { title },
+      sheets: [{ properties: { title: 'Batch' } }],
     },
-    fields: 'id,name,parents',
-    supportsAllDrives: true,
   });
-  const spreadsheetId = createdFile.data.id;
-  if (!spreadsheetId) throw new Error('Drive create did not return a file id');
 
-  console.log('[sheets] created file', { spreadsheetId });
+  const spreadsheetId = created.data.spreadsheetId;
+  const firstSheet = created.data.sheets?.[0]?.properties;
+  if (!spreadsheetId) throw new Error('Sheets API did not return a spreadsheetId');
+  if (firstSheet?.sheetId == null) throw new Error('Sheets API did not return a sheetId for the first tab');
 
-  // 2. Read the auto-created first tab's id + title.
-  const meta = await sheets.spreadsheets.get({ spreadsheetId });
-  const firstSheet = meta.data.sheets?.[0]?.properties;
-  if (firstSheet?.sheetId == null || !firstSheet.title) {
-    throw new Error('Could not read sheet metadata after create');
-  }
+  console.log('[sheets] created', { spreadsheetId, sheetId: firstSheet.sheetId });
 
-  // 3. Write values to the first tab.
   const values = [
     ['Company', 'Full Name', 'Email', 'First Name'],
     ...input.rows.map((r) => [r.company, r.fullName, r.email, r.firstName]),
   ];
+
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range: `${firstSheet.title}!A1`,
@@ -89,7 +66,6 @@ export async function createBatchSheet(
     requestBody: { values },
   });
 
-  // 4. Bold the header row and freeze it.
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
     requestBody: {
@@ -118,20 +94,22 @@ export async function createBatchSheet(
     },
   });
 
-  console.log('[sheets] sharing with user', { userEmail: input.userEmail });
-
-  // 5. Share the file with the user's Gmail. supportsAllDrives is required
-  //    for files that live in a Shared Drive.
-  await drive.permissions.create({
-    fileId: spreadsheetId,
-    supportsAllDrives: true,
-    requestBody: {
-      role: 'writer',
-      type: 'user',
-      emailAddress: input.userEmail,
-    },
-    sendNotificationEmail: false,
-  });
+  // The sheet is already owned by the OAuth user (Adit). Skip sharing when the
+  // batch is for Adit himself — Google errors on "share with yourself".
+  if (input.userEmail.toLowerCase() !== OWNER_EMAIL.toLowerCase()) {
+    console.log('[sheets] sharing with user', { userEmail: input.userEmail });
+    await drive.permissions.create({
+      fileId: spreadsheetId,
+      requestBody: {
+        role: 'writer',
+        type: 'user',
+        emailAddress: input.userEmail,
+      },
+      sendNotificationEmail: false,
+    });
+  } else {
+    console.log('[sheets] skipping share — recipient is owner');
+  }
 
   return {
     url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,

@@ -44,14 +44,21 @@ export async function createBatchSheet(
   const today = new Date().toISOString().slice(0, 10);
   const title = `${input.userName} - ${today} - Batch`;
 
+  console.log('[sheets] creating spreadsheet', { title });
+
   const created = await sheets.spreadsheets.create({
     requestBody: {
       properties: { title },
       sheets: [{ properties: { title: 'Batch' } }],
     },
   });
+
   const spreadsheetId = created.data.spreadsheetId;
+  const firstSheet = created.data.sheets?.[0]?.properties;
   if (!spreadsheetId) throw new Error('Sheets API did not return a spreadsheetId');
+  if (firstSheet?.sheetId == null) throw new Error('Sheets API did not return a sheetId for the first tab');
+
+  console.log('[sheets] created', { spreadsheetId, sheetId: firstSheet.sheetId });
 
   const values = [
     ['Company', 'Full Name', 'Email', 'First Name'],
@@ -60,7 +67,7 @@ export async function createBatchSheet(
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: 'Batch!A1',
+    range: `${firstSheet.title}!A1`,
     valueInputOption: 'RAW',
     requestBody: { values },
   });
@@ -71,20 +78,29 @@ export async function createBatchSheet(
       requests: [
         {
           repeatCell: {
-            range: { sheetId: 0, startRowIndex: 0, endRowIndex: 1 },
+            range: {
+              sheetId: firstSheet.sheetId,
+              startRowIndex: 0,
+              endRowIndex: 1,
+            },
             cell: { userEnteredFormat: { textFormat: { bold: true } } },
             fields: 'userEnteredFormat.textFormat.bold',
           },
         },
         {
           updateSheetProperties: {
-            properties: { sheetId: 0, gridProperties: { frozenRowCount: 1 } },
+            properties: {
+              sheetId: firstSheet.sheetId,
+              gridProperties: { frozenRowCount: 1 },
+            },
             fields: 'gridProperties.frozenRowCount',
           },
         },
       ],
     },
   });
+
+  console.log('[sheets] sharing with user', { userEmail: input.userEmail });
 
   await drive.permissions.create({
     fileId: spreadsheetId,
@@ -100,4 +116,25 @@ export async function createBatchSheet(
     url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
     spreadsheetId,
   };
+}
+
+export function describeGoogleError(err: unknown): string {
+  const e = err as {
+    message?: string;
+    code?: number | string;
+    status?: string;
+    errors?: Array<{ message?: string; reason?: string }>;
+    response?: {
+      status?: number;
+      data?: { error?: { message?: string; status?: string } };
+    };
+  };
+  const googleMsg =
+    e?.response?.data?.error?.message ??
+    e?.errors?.[0]?.message ??
+    e?.message ??
+    'unknown error';
+  const status = e?.response?.status ?? e?.code ?? e?.status ?? '?';
+  const reason = e?.errors?.[0]?.reason ?? e?.response?.data?.error?.status ?? '';
+  return `[${status}${reason ? ` ${reason}` : ''}] ${googleMsg}`;
 }

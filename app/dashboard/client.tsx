@@ -7,7 +7,8 @@ type BatchResponse =
   | { ok: true; url: string; nextAvailable: string; remaining: number }
   | { ok: false; reason: 'cooldown'; retryAt: string }
   | { ok: false; reason: 'exhausted'; remaining: number }
-  | { ok: false; reason: 'sheet_error' | 'unauthenticated' };
+  | { ok: false; reason: 'sheet_error'; detail?: string }
+  | { ok: false; reason: 'unauthenticated' };
 
 interface Props {
   name: string;
@@ -56,8 +57,10 @@ export default function DashboardClient({
         setError('Pool is empty. Tell Adit to add more emails.');
       } else if (data.reason === 'unauthenticated') {
         router.push('/');
+      } else if (data.reason === 'sheet_error') {
+        setError(`Sheet creation failed: ${data.detail ?? 'unknown error'}`);
       } else {
-        setError('Something went wrong creating the sheet. Try again.');
+        setError('Something went wrong. Try again.');
       }
     } catch {
       setError('Network error. Try again.');

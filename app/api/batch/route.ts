@@ -8,7 +8,7 @@ import {
   getCooldown,
   setCooldown,
 } from '@/lib/kv';
-import { createBatchSheet } from '@/lib/sheets';
+import { createBatchSheet, describeGoogleError } from '@/lib/sheets';
 
 const BATCH_SIZE = 300;
 const COOLDOWN_HOURS = 12;
@@ -59,9 +59,10 @@ export async function POST() {
     });
     url = result.url;
   } catch (err) {
-    console.error('createBatchSheet failed', err);
+    const detail = describeGoogleError(err);
+    console.error('createBatchSheet failed:', detail, err);
     return NextResponse.json(
-      { ok: false, reason: 'sheet_error' },
+      { ok: false, reason: 'sheet_error', detail },
       { status: 500 },
     );
   }

@@ -7,6 +7,7 @@ import {
   setPointer,
   getCooldown,
   setCooldown,
+  appendHistory,
 } from '@/lib/kv';
 import { createBatchSheet, describeGoogleError } from '@/lib/sheets';
 
@@ -16,7 +17,7 @@ const COOLDOWN_HOURS = 12;
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
-export async function POST(req: Request) {
+export async function POST() {
   const session = await getSession();
   const pin = session.pin;
   const user = pin ? getUser(pin) : undefined;
@@ -27,9 +28,6 @@ export async function POST(req: Request) {
       { status: 401 },
     );
   }
-
-  const body = await req.json().catch(() => ({} as { testMode?: boolean }));
-  const testMode = body?.testMode === true;
 
   const now = new Date();
 
@@ -54,6 +52,7 @@ export async function POST(req: Request) {
   const rows = EMAILS.slice(pointer, pointer + BATCH_SIZE);
 
   let url: string;
+  let title: string;
   try {
     const result = await createBatchSheet({
       userName: user.name,
@@ -61,6 +60,7 @@ export async function POST(req: Request) {
       rows,
     });
     url = result.url;
+    title = result.title;
   } catch (err) {
     const detail = describeGoogleError(err);
     console.error('createBatchSheet failed:', detail, err);
@@ -70,26 +70,20 @@ export async function POST(req: Request) {
     );
   }
 
-  if (testMode) {
-    console.log('[batch] TEST MODE — skipping pointer advance and cooldown', { pin });
-    return NextResponse.json({
-      ok: true,
-      url,
-      nextAvailable: now.toISOString(),
-      remaining: EMAILS.length - pointer,
-    });
-  }
-
   await setPointer(pointer + BATCH_SIZE);
   const nextAvailable = new Date(
     now.getTime() + COOLDOWN_HOURS * 60 * 60 * 1000,
   );
   await setCooldown(pin, nextAvailable);
 
+  const newEntry = { url, title, createdAt: now.toISOString() };
+  await appendHistory(pin, newEntry);
+
   return NextResponse.json({
     ok: true,
     url,
     nextAvailable: nextAvailable.toISOString(),
     remaining: EMAILS.length - (pointer + BATCH_SIZE),
+    newEntry,
   });
 }

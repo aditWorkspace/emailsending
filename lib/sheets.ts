@@ -26,6 +26,7 @@ export interface CreateBatchSheetInput {
 export interface CreateBatchSheetResult {
   url: string;
   spreadsheetId: string;
+  title: string;
 }
 
 export async function createBatchSheet(
@@ -114,6 +115,7 @@ export async function createBatchSheet(
   return {
     url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
     spreadsheetId,
+    title,
   };
 }
 

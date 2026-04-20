@@ -2,6 +2,14 @@ import { Redis } from '@upstash/redis';
 
 const POINTER_KEY = 'pointer';
 const cooldownKey = (pin: string) => `cooldown:${pin}`;
+const historyKey = (pin: string) => `history:${pin}`;
+const HISTORY_CAP = 50;
+
+export interface HistoryEntry {
+  url: string;
+  createdAt: string;
+  title: string;
+}
 
 let _redis: Redis | null = null;
 
@@ -40,4 +48,27 @@ export async function setCooldown(pin: string, date: Date): Promise<void> {
 
 export async function clearCooldown(pin: string): Promise<void> {
   await redis().del(cooldownKey(pin));
+}
+
+export async function getHistory(pin: string): Promise<HistoryEntry[]> {
+  const raw = await redis().get(historyKey(pin));
+  if (!raw) return [];
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as HistoryEntry[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(raw) ? (raw as HistoryEntry[]) : [];
+}
+
+export async function appendHistory(
+  pin: string,
+  entry: HistoryEntry,
+): Promise<void> {
+  const existing = await getHistory(pin);
+  const next = [entry, ...existing].slice(0, HISTORY_CAP);
+  await redis().set(historyKey(pin), JSON.stringify(next));
 }

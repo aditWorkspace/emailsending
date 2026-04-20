@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
 import { getUser } from '@/lib/users';
-import { getCooldown, getPointer } from '@/lib/kv';
+import { getCooldown, getPointer, getHistory } from '@/lib/kv';
 import { EMAILS } from '@/lib/emails';
 import DashboardClient from './client';
 
@@ -14,9 +14,10 @@ export default async function DashboardPage() {
     redirect('/');
   }
 
-  const [cooldown, pointer] = await Promise.all([
+  const [cooldown, pointer, history] = await Promise.all([
     getCooldown(session.pin),
     getPointer(),
+    getHistory(session.pin),
   ]);
   const remaining = Math.max(0, EMAILS.length - pointer);
 
@@ -25,6 +26,7 @@ export default async function DashboardPage() {
       name={user.name}
       cooldownIso={cooldown ? cooldown.toISOString() : null}
       remaining={remaining}
+      history={history}
     />
   );
 }

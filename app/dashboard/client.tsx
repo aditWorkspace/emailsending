@@ -2,9 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { HistoryEntry } from '@/lib/kv';
 
 type BatchResponse =
-  | { ok: true; url: string; nextAvailable: string; remaining: number }
+  | {
+      ok: true;
+      url: string;
+      nextAvailable: string;
+      remaining: number;
+      newEntry: HistoryEntry;
+    }
   | { ok: false; reason: 'cooldown'; retryAt: string }
   | { ok: false; reason: 'exhausted'; remaining: number }
   | { ok: false; reason: 'sheet_error'; detail?: string }
@@ -14,12 +21,14 @@ interface Props {
   name: string;
   cooldownIso: string | null;
   remaining: number;
+  history: HistoryEntry[];
 }
 
 export default function DashboardClient({
   name,
   cooldownIso,
   remaining: initialRemaining,
+  history: initialHistory,
 }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -27,8 +36,8 @@ export default function DashboardClient({
   const [error, setError] = useState<string | null>(null);
   const [nextAvailable, setNextAvailable] = useState<string | null>(cooldownIso);
   const [remaining, setRemaining] = useState(initialRemaining);
+  const [history, setHistory] = useState<HistoryEntry[]>(initialHistory);
   const [now, setNow] = useState<Date | null>(null);
-  const [testMode, setTestMode] = useState(true);
 
   useEffect(() => {
     setNow(new Date());
@@ -44,17 +53,14 @@ export default function DashboardClient({
     setError(null);
     setBatchUrl(null);
     try {
-      const res = await fetch('/api/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ testMode }),
-      });
+      const res = await fetch('/api/batch', { method: 'POST' });
       const data: BatchResponse = await res.json();
 
       if (data.ok) {
         setBatchUrl(data.url);
         setNextAvailable(data.nextAvailable);
         setRemaining(data.remaining);
+        setHistory((prev) => [data.newEntry, ...prev]);
         window.open(data.url, '_blank', 'noopener,noreferrer');
       } else if (data.reason === 'cooldown') {
         setNextAvailable(data.retryAt);
@@ -89,6 +95,16 @@ export default function DashboardClient({
     return `${h}h ${m}m ${s}s`;
   }
 
+  function formatEntryDate(iso: string): string {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }
+
   return (
     <main className="min-h-screen flex items-center justify-center bg-black text-white p-6">
       <div className="max-w-md w-full flex flex-col gap-6">
@@ -102,27 +118,12 @@ export default function DashboardClient({
           </button>
         </div>
 
-        {/* TEST MODE: remove this label block before sharing with Srijay/Asim */}
-        <label className="flex items-center gap-2 text-sm text-yellow-400 bg-yellow-950/40 border border-yellow-900 rounded px-3 py-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={testMode}
-            onChange={(e) => setTestMode(e.target.checked)}
-            className="accent-yellow-400"
-          />
-          Test mode — don&apos;t consume emails or start cooldown
-        </label>
-
         <button
           onClick={getBatch}
           disabled={loading || onCooldown}
           className="bg-white text-black font-semibold py-6 rounded text-lg disabled:opacity-40 transition"
         >
-          {loading
-            ? 'Preparing your batch...'
-            : testMode
-              ? 'Give me a test batch of 300'
-              : 'Give me my batch of 300'}
+          {loading ? 'Preparing your batch...' : 'Give me my batch of 300'}
         </button>
 
         {onCooldown && cooldownDate && (
@@ -139,7 +140,7 @@ export default function DashboardClient({
         )}
 
         {!onCooldown && !batchUrl && (
-          <p className="text-center text-green-500">Ready. ⚡ (oauth build)</p>
+          <p className="text-center text-green-500">Ready to go.</p>
         )}
 
         {batchUrl && (
@@ -160,6 +161,34 @@ export default function DashboardClient({
         <p className="text-xs text-neutral-500 text-center">
           {remaining.toLocaleString()} emails left in pool
         </p>
+
+        {history.length > 0 && (
+          <div className="border-t border-neutral-800 pt-4 flex flex-col gap-2">
+            <p className="text-xs uppercase tracking-wider text-neutral-500">
+              Your past batches
+            </p>
+            <ul className="flex flex-col divide-y divide-neutral-900 max-h-72 overflow-y-auto">
+              {history.map((h) => (
+                <li
+                  key={h.createdAt}
+                  className="flex justify-between items-center py-2 text-sm"
+                >
+                  <span className="text-neutral-400">
+                    {formatEntryDate(h.createdAt)}
+                  </span>
+                  <a
+                    href={h.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 underline"
+                  >
+                    open sheet →
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </main>
   );

@@ -1,0 +1,15 @@
+node_modules
+.next
+.env
+.env*.local
+*.log
+.DS_Store
+.vercel
+
+# never commit the service account JSON
+*credentials*.json
+*service-account*.json
+
+# never commit raw email CSVs — generated lib/emails.ts is what we ship
+*.csv
+

@@ -1,0 +1,29 @@
+{
+  "name": "emailsendingasa",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "csv": "node scripts/csv-to-ts.mjs"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.37.0",
+    "googleapis": "^144.0.0",
+    "iron-session": "^8.0.4",
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "csv-parse": "^5.6.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.0"
+  }
+}

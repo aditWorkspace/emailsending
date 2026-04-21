@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth';
+import { getSession, SESSION_TTL_SECONDS } from '@/lib/auth';
 import { getUser } from '@/lib/users';
 import { getCooldown, getPointer, getHistory } from '@/lib/kv';
 import { EMAILS } from '@/lib/emails';
@@ -9,15 +9,22 @@ export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
   const session = await getSession();
-  const user = session.pin ? getUser(session.pin) : undefined;
-  if (!user || !session.pin) {
+  const user = session.password ? getUser(session.password) : undefined;
+  if (!user || !session.password || !session.loginAt) {
+    redirect('/');
+  }
+
+  const expiresAt = new Date(
+    new Date(session.loginAt).getTime() + SESSION_TTL_SECONDS * 1000,
+  );
+  if (Date.now() >= expiresAt.getTime()) {
     redirect('/');
   }
 
   const [cooldown, pointer, history] = await Promise.all([
-    getCooldown(session.pin),
+    getCooldown(session.password),
     getPointer(),
-    getHistory(session.pin),
+    getHistory(session.password),
   ]);
   const remaining = Math.max(0, EMAILS.length - pointer);
 
@@ -27,6 +34,7 @@ export default async function DashboardPage() {
       cooldownIso={cooldown ? cooldown.toISOString() : null}
       remaining={remaining}
       history={history}
+      expiresAtIso={expiresAt.toISOString()}
     />
   );
 }

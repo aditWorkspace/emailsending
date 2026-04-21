@@ -22,6 +22,7 @@ interface Props {
   cooldownIso: string | null;
   remaining: number;
   history: HistoryEntry[];
+  expiresAtIso: string;
 }
 
 export default function DashboardClient({
@@ -29,6 +30,7 @@ export default function DashboardClient({
   cooldownIso,
   remaining: initialRemaining,
   history: initialHistory,
+  expiresAtIso,
 }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -39,14 +41,31 @@ export default function DashboardClient({
   const [history, setHistory] = useState<HistoryEntry[]>(initialHistory);
   const [now, setNow] = useState<Date | null>(null);
 
+  const expiresAt = new Date(expiresAtIso);
+
+  async function logout() {
+    await fetch('/api/logout', { method: 'POST' });
+    router.push('/');
+    router.refresh();
+  }
+
   useEffect(() => {
-    setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), 1000);
+    const tick = () => {
+      const current = new Date();
+      setNow(current);
+      if (current.getTime() >= expiresAt.getTime()) {
+        logout();
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expiresAtIso]);
 
   const cooldownDate = nextAvailable ? new Date(nextAvailable) : null;
   const onCooldown = !!(now && cooldownDate && now < cooldownDate);
+  const sessionMsLeft = now ? Math.max(0, expiresAt.getTime() - now.getTime()) : null;
 
   async function getBatch() {
     setLoading(true);
@@ -80,12 +99,6 @@ export default function DashboardClient({
     }
   }
 
-  async function logout() {
-    await fetch('/api/logout', { method: 'POST' });
-    router.push('/');
-    router.refresh();
-  }
-
   function countdown(target: Date): string {
     if (!now) return '';
     const diff = Math.max(0, target.getTime() - now.getTime());
@@ -110,12 +123,23 @@ export default function DashboardClient({
       <div className="max-w-md w-full flex flex-col gap-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">Hi {name}.</h1>
-          <button
-            onClick={logout}
-            className="text-sm text-neutral-400 hover:text-white underline"
-          >
-            Log out
-          </button>
+          <div className="flex flex-col items-end gap-0.5">
+            <button
+              onClick={logout}
+              className="text-sm text-neutral-400 hover:text-white underline"
+            >
+              Log out
+            </button>
+            {sessionMsLeft !== null && (
+              <span className="text-[10px] font-mono text-neutral-500">
+                auto-logout in {Math.floor(sessionMsLeft / 60000)}m{' '}
+                {Math.floor((sessionMsLeft % 60000) / 1000)
+                  .toString()
+                  .padStart(2, '0')}
+                s
+              </span>
+            )}
+          </div>
         </div>
 
         <button

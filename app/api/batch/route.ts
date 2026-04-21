@@ -19,10 +19,10 @@ export const maxDuration = 30;
 
 export async function POST() {
   const session = await getSession();
-  const pin = session.pin;
-  const user = pin ? getUser(pin) : undefined;
+  const password = session.password;
+  const user = password ? getUser(password) : undefined;
 
-  if (!pin || !user) {
+  if (!password || !user) {
     return NextResponse.json(
       { ok: false, reason: 'unauthenticated' },
       { status: 401 },
@@ -31,7 +31,7 @@ export async function POST() {
 
   const now = new Date();
 
-  const cooldown = await getCooldown(pin);
+  const cooldown = await getCooldown(password);
   if (cooldown && now < cooldown) {
     return NextResponse.json({
       ok: false,
@@ -74,10 +74,10 @@ export async function POST() {
   const nextAvailable = new Date(
     now.getTime() + COOLDOWN_HOURS * 60 * 60 * 1000,
   );
-  await setCooldown(pin, nextAvailable);
+  await setCooldown(password, nextAvailable);
 
   const newEntry = { url, title, createdAt: now.toISOString() };
-  await appendHistory(pin, newEntry);
+  await appendHistory(password, newEntry);
 
   return NextResponse.json({
     ok: true,

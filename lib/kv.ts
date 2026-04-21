@@ -1,8 +1,8 @@
 import { Redis } from '@upstash/redis';
 
 const POINTER_KEY = 'pointer';
-const cooldownKey = (pin: string) => `cooldown:${pin}`;
-const historyKey = (pin: string) => `history:${pin}`;
+const cooldownKey = (password: string) => `cooldown:${password}`;
+const historyKey = (password: string) => `history:${password}`;
 const HISTORY_CAP = 50;
 
 export interface HistoryEntry {
@@ -37,21 +37,21 @@ export async function setPointer(value: number): Promise<void> {
   await redis().set(POINTER_KEY, value);
 }
 
-export async function getCooldown(pin: string): Promise<Date | null> {
-  const iso = await redis().get<string>(cooldownKey(pin));
+export async function getCooldown(password: string): Promise<Date | null> {
+  const iso = await redis().get<string>(cooldownKey(password));
   return iso ? new Date(iso) : null;
 }
 
-export async function setCooldown(pin: string, date: Date): Promise<void> {
-  await redis().set(cooldownKey(pin), date.toISOString());
+export async function setCooldown(password: string, date: Date): Promise<void> {
+  await redis().set(cooldownKey(password), date.toISOString());
 }
 
-export async function clearCooldown(pin: string): Promise<void> {
-  await redis().del(cooldownKey(pin));
+export async function clearCooldown(password: string): Promise<void> {
+  await redis().del(cooldownKey(password));
 }
 
-export async function getHistory(pin: string): Promise<HistoryEntry[]> {
-  const raw = await redis().get(historyKey(pin));
+export async function getHistory(password: string): Promise<HistoryEntry[]> {
+  const raw = await redis().get(historyKey(password));
   if (!raw) return [];
   if (typeof raw === 'string') {
     try {
@@ -65,10 +65,10 @@ export async function getHistory(pin: string): Promise<HistoryEntry[]> {
 }
 
 export async function appendHistory(
-  pin: string,
+  password: string,
   entry: HistoryEntry,
 ): Promise<void> {
-  const existing = await getHistory(pin);
+  const existing = await getHistory(password);
   const next = [entry, ...existing].slice(0, HISTORY_CAP);
-  await redis().set(historyKey(pin), JSON.stringify(next));
+  await redis().set(historyKey(password), JSON.stringify(next));
 }

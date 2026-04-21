@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [pin, setPin] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -16,7 +16,7 @@ export default function LoginPage() {
     const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ pin }),
+      body: JSON.stringify({ password }),
     });
     setLoading(false);
     if (res.ok) {
@@ -24,7 +24,7 @@ export default function LoginPage() {
       router.refresh();
     } else {
       setError(true);
-      setPin('');
+      setPassword('');
     }
   }
 
@@ -36,26 +36,23 @@ export default function LoginPage() {
         </h1>
         <input
           type="password"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={4}
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-          placeholder="4-digit pin"
-          className={`px-4 py-3 text-xl text-center rounded bg-neutral-900 border tracking-widest ${
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="password"
+          className={`px-4 py-3 text-lg text-center rounded bg-neutral-900 border ${
             error ? 'border-red-500 animate-shake' : 'border-neutral-700'
           }`}
           autoFocus
         />
         <button
           type="submit"
-          disabled={pin.length !== 4 || loading}
+          disabled={password.length === 0 || loading}
           className="bg-white text-black font-semibold py-3 rounded disabled:opacity-40 transition"
         >
           {loading ? '...' : 'Enter'}
         </button>
         {error && (
-          <p className="text-red-500 text-sm text-center">Wrong pin.</p>
+          <p className="text-red-500 text-sm text-center">Wrong password.</p>
         )}
       </form>
     </main>

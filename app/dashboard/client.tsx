@@ -23,6 +23,7 @@ interface Props {
   remaining: number;
   history: HistoryEntry[];
   expiresAtIso: string;
+  isAdmin?: boolean;
 }
 
 export default function DashboardClient({
@@ -31,6 +32,7 @@ export default function DashboardClient({
   remaining: initialRemaining,
   history: initialHistory,
   expiresAtIso,
+  isAdmin = false,
 }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -189,17 +191,24 @@ export default function DashboardClient({
         {history.length > 0 && (
           <div className="border-t border-neutral-800 pt-4 flex flex-col gap-2">
             <p className="text-xs uppercase tracking-wider text-neutral-500">
-              Your past batches
+              {isAdmin ? 'All batches (team view)' : 'Your past batches'}
             </p>
             <ul className="flex flex-col divide-y divide-neutral-900 max-h-72 overflow-y-auto">
               {history.map((h) => (
                 <li
-                  key={h.createdAt}
+                  key={`${h.createdAt}-${h.createdBy ?? ''}`}
                   className="flex justify-between items-center py-2 text-sm"
                 >
-                  <span className="text-neutral-400">
-                    {formatEntryDate(h.createdAt)}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-neutral-400">
+                      {formatEntryDate(h.createdAt)}
+                    </span>
+                    {isAdmin && h.createdBy && (
+                      <span className="text-xs text-neutral-600">
+                        by {h.createdBy}
+                      </span>
+                    )}
+                  </div>
                   <a
                     href={h.url}
                     target="_blank"

@@ -1,4 +1,5 @@
 import { Redis } from '@upstash/redis';
+import { getAllPasswords, getUserByPassword } from './users';
 
 const POINTER_KEY = 'pointer';
 const cooldownKey = (password: string) => `cooldown:${password}`;
@@ -9,6 +10,7 @@ export interface HistoryEntry {
   url: string;
   createdAt: string;
   title: string;
+  createdBy?: string;
 }
 
 let _redis: Redis | null = null;
@@ -71,4 +73,26 @@ export async function appendHistory(
   const existing = await getHistory(password);
   const next = [entry, ...existing].slice(0, HISTORY_CAP);
   await redis().set(historyKey(password), JSON.stringify(next));
+}
+
+export async function getAllHistory(): Promise<HistoryEntry[]> {
+  const passwords = getAllPasswords();
+  const allEntries: HistoryEntry[] = [];
+
+  for (const pwd of passwords) {
+    const user = getUserByPassword(pwd);
+    const entries = await getHistory(pwd);
+    for (const entry of entries) {
+      allEntries.push({
+        ...entry,
+        createdBy: user?.name ?? 'Unknown',
+      });
+    }
+  }
+
+  allEntries.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+
+  return allEntries;
 }

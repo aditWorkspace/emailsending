@@ -76,7 +76,7 @@ export async function POST() {
   );
   await setCooldown(password, nextAvailable);
 
-  const newEntry = { url, title, createdAt: now.toISOString() };
+  const newEntry = { url, title, createdAt: now.toISOString(), createdBy: user.name };
   await appendHistory(password, newEntry);
 
   return NextResponse.json({

@@ -2,9 +2,17 @@ import { Redis } from '@upstash/redis';
 import { getAllPasswords, getUserByPassword } from './users';
 
 const POINTER_KEY = 'pointer';
+const BLACKLIST_KEY = 'blacklist';
 const cooldownKey = (password: string) => `cooldown:${password}`;
 const historyKey = (password: string) => `history:${password}`;
 const HISTORY_CAP = 50;
+
+const SADD_CHUNK = 1000;
+const SMISMEMBER_CHUNK = 500;
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
 
 export interface HistoryEntry {
   url: string;
@@ -73,6 +81,42 @@ export async function appendHistory(
   const existing = await getHistory(password);
   const next = [entry, ...existing].slice(0, HISTORY_CAP);
   await redis().set(historyKey(password), JSON.stringify(next));
+}
+
+export async function getBlacklistSize(): Promise<number> {
+  return await redis().scard(BLACKLIST_KEY);
+}
+
+export async function isBlacklistedBatch(
+  emails: string[],
+): Promise<boolean[]> {
+  const normalized = emails.map(normalizeEmail);
+  const result: boolean[] = new Array(normalized.length);
+  for (let i = 0; i < normalized.length; i += SMISMEMBER_CHUNK) {
+    const chunk = normalized.slice(i, i + SMISMEMBER_CHUNK);
+    const res = await redis().smismember(BLACKLIST_KEY, chunk);
+    for (let j = 0; j < chunk.length; j++) {
+      result[i + j] = res[j] === 1;
+    }
+  }
+  return result;
+}
+
+export async function addToBlacklist(
+  emails: string[],
+): Promise<{ added: number; totalAfter: number }> {
+  const unique = Array.from(
+    new Set(emails.map(normalizeEmail).filter((e) => e.length > 0)),
+  );
+  let added = 0;
+  for (let i = 0; i < unique.length; i += SADD_CHUNK) {
+    const chunk = unique.slice(i, i + SADD_CHUNK);
+    if (chunk.length === 0) continue;
+    const n = await redis().sadd(BLACKLIST_KEY, chunk[0], ...chunk.slice(1));
+    added += n;
+  }
+  const totalAfter = await getBlacklistSize();
+  return { added, totalAfter };
 }
 
 export async function getAllHistory(): Promise<HistoryEntry[]> {

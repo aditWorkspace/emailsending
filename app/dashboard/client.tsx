@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { HistoryEntry } from '@/lib/kv';
 
@@ -24,6 +24,14 @@ interface Props {
   history: HistoryEntry[];
   expiresAtIso: string;
   isAdmin?: boolean;
+  blacklistSize?: number;
+}
+
+interface UploadResult {
+  filesParsed: number;
+  uniqueEmailsFound: number;
+  newlyAdded: number;
+  totalAfter: number;
 }
 
 export default function DashboardClient({
@@ -33,6 +41,7 @@ export default function DashboardClient({
   history: initialHistory,
   expiresAtIso,
   isAdmin = false,
+  blacklistSize: initialBlacklistSize = 0,
 }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -42,6 +51,11 @@ export default function DashboardClient({
   const [remaining, setRemaining] = useState(initialRemaining);
   const [history, setHistory] = useState<HistoryEntry[]>(initialHistory);
   const [now, setNow] = useState<Date | null>(null);
+  const [blacklistSize, setBlacklistSize] = useState<number>(initialBlacklistSize);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const expiresAt = new Date(expiresAtIso);
 
@@ -98,6 +112,37 @@ export default function DashboardClient({
       setError('Network error. Try again.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function uploadBlacklist(files: FileList) {
+    setUploading(true);
+    setUploadError(null);
+    setUploadResult(null);
+    try {
+      const form = new FormData();
+      for (const f of Array.from(files)) form.append('files', f);
+      const res = await fetch('/api/blacklist/upload', {
+        method: 'POST',
+        body: form,
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setUploadError(data.reason ?? 'upload failed');
+      } else {
+        setUploadResult({
+          filesParsed: data.filesParsed,
+          uniqueEmailsFound: data.uniqueEmailsFound,
+          newlyAdded: data.newlyAdded,
+          totalAfter: data.totalAfter,
+        });
+        setBlacklistSize(data.totalAfter);
+      }
+    } catch {
+      setUploadError('network error');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
@@ -186,7 +231,53 @@ export default function DashboardClient({
 
         <p className="text-xs text-neutral-500 text-center">
           {remaining.toLocaleString()} emails left in pool
+          {isAdmin && (
+            <>
+              {' · '}
+              {blacklistSize.toLocaleString()} in blacklist
+            </>
+          )}
         </p>
+
+        {isAdmin && (
+          <div className="border-t border-neutral-800 pt-4 flex flex-col gap-2">
+            <p className="text-xs uppercase tracking-wider text-neutral-500">
+              Blacklist upload (admin)
+            </p>
+            <p className="text-xs text-neutral-500">
+              Upload CSVs of already-contacted people. Any email-looking string
+              in any cell gets added to the blacklist. Future batches skip them.
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv,text/plain"
+              multiple
+              disabled={uploading}
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  uploadBlacklist(e.target.files);
+                }
+              }}
+              className="text-xs text-neutral-400 file:mr-3 file:px-3 file:py-2 file:rounded file:border-0 file:bg-neutral-800 file:text-white file:cursor-pointer hover:file:bg-neutral-700 disabled:opacity-40"
+            />
+            {uploading && (
+              <p className="text-xs text-neutral-400">Uploading…</p>
+            )}
+            {uploadResult && (
+              <p className="text-xs text-green-400">
+                +{uploadResult.newlyAdded.toLocaleString()} added (
+                {uploadResult.uniqueEmailsFound.toLocaleString()} unique emails
+                across {uploadResult.filesParsed} file
+                {uploadResult.filesParsed === 1 ? '' : 's'}). Total:{' '}
+                {uploadResult.totalAfter.toLocaleString()}.
+              </p>
+            )}
+            {uploadError && (
+              <p className="text-xs text-red-400">Upload failed: {uploadError}</p>
+            )}
+          </div>
+        )}
 
         {history.length > 0 && (
           <div className="border-t border-neutral-800 pt-4 flex flex-col gap-2">

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getSession, SESSION_TTL_SECONDS } from '@/lib/auth';
 import { getUser } from '@/lib/users';
-import { getCooldown, getPointer, getHistory, getAllHistory } from '@/lib/kv';
+import { getCooldown, getPointer, getHistory, getAllHistory, getBlacklistSize } from '@/lib/kv';
 import { EMAILS } from '@/lib/emails';
 import DashboardClient from './client';
 
@@ -23,10 +23,11 @@ export default async function DashboardPage() {
 
   const isAdmin = user.isAdmin ?? false;
 
-  const [cooldown, pointer, history] = await Promise.all([
+  const [cooldown, pointer, history, blacklistSize] = await Promise.all([
     getCooldown(session.password),
     getPointer(),
     isAdmin ? getAllHistory() : getHistory(session.password),
+    isAdmin ? getBlacklistSize() : Promise.resolve(0),
   ]);
   const remaining = Math.max(0, EMAILS.length - pointer);
 
@@ -38,6 +39,7 @@ export default async function DashboardPage() {
       history={history}
       expiresAtIso={expiresAt.toISOString()}
       isAdmin={isAdmin}
+      blacklistSize={blacklistSize}
     />
   );
 }

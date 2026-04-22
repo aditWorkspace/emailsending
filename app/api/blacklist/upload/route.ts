@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { getUser } from '@/lib/users';
-import { addToBlacklist, getBlacklistSize } from '@/lib/kv';
+import { EMAILS } from '@/lib/emails';
+import {
+  addToBlacklist,
+  getBlacklistSize,
+  getPointer,
+  countFresh,
+  setEffectiveRemaining,
+} from '@/lib/kv';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -55,10 +62,18 @@ export async function POST(req: NextRequest) {
       newlyAdded: 0,
       totalBefore,
       totalAfter: totalBefore,
+      freshRemaining: null,
     });
   }
 
   const { added, totalAfter } = await addToBlacklist(Array.from(allEmails));
+
+  // Recompute how many pool rows are still fresh after the upload.
+  const pointer = await getPointer();
+  const freshRemaining = await countFresh(
+    EMAILS.slice(pointer).map((r) => r.email),
+  );
+  await setEffectiveRemaining(pointer, freshRemaining);
 
   return NextResponse.json({
     ok: true,
@@ -67,5 +82,6 @@ export async function POST(req: NextRequest) {
     newlyAdded: added,
     totalBefore,
     totalAfter,
+    freshRemaining,
   });
 }

@@ -11,6 +11,8 @@ import {
   appendHistory,
   isBlacklistedBatch,
   addToBlacklist,
+  countFresh,
+  setEffectiveRemaining,
 } from '@/lib/kv';
 import { createBatchSheet, describeGoogleError } from '@/lib/sheets';
 
@@ -67,6 +69,7 @@ export async function POST() {
     // Ran out of pool before filling a full batch. Still advance the pointer
     // so we don't re-scan the same exhausted tail next time.
     await setPointer(cursor);
+    await setEffectiveRemaining(cursor, 0);
     return NextResponse.json({
       ok: false,
       reason: 'exhausted',
@@ -97,6 +100,12 @@ export async function POST() {
   // Auto-add every email we just shipped so no future batch can re-contact them.
   await addToBlacklist(picked.map((r) => r.email));
 
+  // Recompute fresh-remaining against the new pointer + blacklist and cache it.
+  const freshRemaining = await countFresh(
+    EMAILS.slice(cursor).map((r) => r.email),
+  );
+  await setEffectiveRemaining(cursor, freshRemaining);
+
   const nextAvailable = new Date(
     now.getTime() + COOLDOWN_HOURS * 60 * 60 * 1000,
   );
@@ -109,7 +118,7 @@ export async function POST() {
     ok: true,
     url,
     nextAvailable: nextAvailable.toISOString(),
-    remaining: Math.max(0, EMAILS.length - cursor),
+    remaining: freshRemaining,
     newEntry,
   });
 }

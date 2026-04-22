@@ -3,6 +3,7 @@ import { getAllPasswords, getUserByPassword } from './users';
 
 const POINTER_KEY = 'pointer';
 const BLACKLIST_KEY = 'blacklist';
+const EFF_REMAINING_KEY = 'effective_remaining';
 const cooldownKey = (password: string) => `cooldown:${password}`;
 const historyKey = (password: string) => `history:${password}`;
 const HISTORY_CAP = 50;
@@ -117,6 +118,49 @@ export async function addToBlacklist(
   }
   const totalAfter = await getBlacklistSize();
   return { added, totalAfter };
+}
+
+export async function countFresh(emails: string[]): Promise<number> {
+  const flags = await isBlacklistedBatch(emails);
+  let fresh = 0;
+  for (const f of flags) if (!f) fresh++;
+  return fresh;
+}
+
+export interface EffectiveRemaining {
+  pointer: number;
+  fresh: number;
+  updatedAt: string;
+}
+
+export async function getEffectiveRemaining(): Promise<EffectiveRemaining | null> {
+  const raw = await redis().get(EFF_REMAINING_KEY);
+  if (!raw) return null;
+  try {
+    const parsed =
+      typeof raw === 'string' ? JSON.parse(raw) : (raw as EffectiveRemaining);
+    if (
+      typeof parsed?.pointer === 'number' &&
+      typeof parsed?.fresh === 'number'
+    ) {
+      return parsed as EffectiveRemaining;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setEffectiveRemaining(
+  pointer: number,
+  fresh: number,
+): Promise<void> {
+  const payload: EffectiveRemaining = {
+    pointer,
+    fresh,
+    updatedAt: new Date().toISOString(),
+  };
+  await redis().set(EFF_REMAINING_KEY, JSON.stringify(payload));
 }
 
 export async function getAllHistory(): Promise<HistoryEntry[]> {

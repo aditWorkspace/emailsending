@@ -1,7 +1,16 @@
 import { redirect } from 'next/navigation';
 import { getSession, SESSION_TTL_SECONDS } from '@/lib/auth';
 import { getUser } from '@/lib/users';
-import { getCooldown, getPointer, getHistory, getAllHistory, getBlacklistSize } from '@/lib/kv';
+import {
+  getCooldown,
+  getPointer,
+  getHistory,
+  getAllHistory,
+  getBlacklistSize,
+  getEffectiveRemaining,
+  setEffectiveRemaining,
+  countFresh,
+} from '@/lib/kv';
 import { EMAILS } from '@/lib/emails';
 import DashboardClient from './client';
 
@@ -23,13 +32,24 @@ export default async function DashboardPage() {
 
   const isAdmin = user.isAdmin ?? false;
 
-  const [cooldown, pointer, history, blacklistSize] = await Promise.all([
-    getCooldown(session.password),
-    getPointer(),
-    isAdmin ? getAllHistory() : getHistory(session.password),
-    isAdmin ? getBlacklistSize() : Promise.resolve(0),
-  ]);
-  const remaining = Math.max(0, EMAILS.length - pointer);
+  const [cooldown, pointer, history, blacklistSize, cachedRemaining] =
+    await Promise.all([
+      getCooldown(session.password),
+      getPointer(),
+      isAdmin ? getAllHistory() : getHistory(session.password),
+      isAdmin ? getBlacklistSize() : Promise.resolve(0),
+      getEffectiveRemaining(),
+    ]);
+
+  let remaining: number;
+  if (cachedRemaining && cachedRemaining.pointer === pointer) {
+    remaining = cachedRemaining.fresh;
+  } else {
+    // Cold cache (fresh deploy, Redis eviction, or pointer drift). Recompute
+    // once; subsequent loads hit the cache.
+    remaining = await countFresh(EMAILS.slice(pointer).map((r) => r.email));
+    await setEffectiveRemaining(pointer, remaining);
+  }
 
   return (
     <DashboardClient

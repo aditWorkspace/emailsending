@@ -194,7 +194,7 @@ export default function DashboardClient({
           disabled={loading || onCooldown}
           className="bg-white text-black font-semibold py-6 rounded text-lg disabled:opacity-40 transition"
         >
-          {loading ? 'Preparing your batch...' : 'Give me my batch of 300'}
+          {loading ? 'Preparing your batch...' : 'Give me my batch of 400'}
         </button>
 
         {onCooldown && cooldownDate && (

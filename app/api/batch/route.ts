@@ -16,7 +16,7 @@ import {
 } from '@/lib/kv';
 import { createBatchSheet, describeGoogleError } from '@/lib/sheets';
 
-const BATCH_SIZE = 300;
+const BATCH_SIZE = 400;
 const COOLDOWN_HOURS = 12;
 const LOOKAHEAD_WINDOW = 500;
 

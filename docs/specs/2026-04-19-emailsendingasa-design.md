@@ -11,7 +11,7 @@
 
 ## 1. Goal
 
-A private Vercel website. Each user enters their 4-digit pin, hits one button, and is handed the link to a Google Sheet containing their next 300 emails. 12-hour cooldown between batches. No email is ever given out twice. That's it.
+A private Vercel website. Each user enters their 4-digit pin, hits one button, and is handed the link to a Google Sheet containing their next 400 emails. 12-hour cooldown between batches. No email is ever given out twice. That's it.
 
 ---
 
@@ -30,7 +30,7 @@ Stored in Vercel KV:
 
 | Key | Value | Purpose |
 |-----|-------|---------|
-| `pointer` | integer, starts at `0` | Index into the emails array. Next batch = `emails.slice(pointer, pointer+300)`. |
+| `pointer` | integer, starts at `0` | Index into the emails array. Next batch = `emails.slice(pointer, pointer+400)`. |
 | `cooldown:7722` | ISO8601 timestamp | Adit's next-available time. |
 | `cooldown:3490` | ISO8601 timestamp | Shri J's next-available time. |
 | `cooldown:5514` | ISO8601 timestamp | Asim's next-available time. |
@@ -64,7 +64,7 @@ Pin = full identity. No separate login/username. Email is used to share the gene
 
 **`/dashboard`** (cookie required, else redirect to `/`)
 - Shows: "Hi `<name>`."
-- One big button: **"Give me my batch of 300"**
+- One big button: **"Give me my batch of 400"**
 - Below it: next-available time (if cooldown active) or "Ready now."
 - Small "Log out" link (clears cookie).
 
@@ -79,16 +79,16 @@ Pin = full identity. No separate login/username. Email is used to share the gene
 
 1. Read cookie, look up user. Missing/invalid → 401.
 2. Read `cooldown:<pin>` from KV. If `now < cooldown` → return `{ok:false, reason:"cooldown", retryAt}`.
-3. Read `pointer` from KV. If `pointer + 300 > emails.length` → return `{ok:false, reason:"exhausted"}`.
-4. Slice: `const batch = emails.slice(pointer, pointer + 300);`
+3. Read `pointer` from KV. If `pointer + 400 > emails.length` → return `{ok:false, reason:"exhausted"}`.
+4. Slice: `const batch = emails.slice(pointer, pointer + 400);`
 5. **Create Google Sheet** via service account:
    - Use `googleapis` npm package.
    - Create a new Spreadsheet titled `<UserName> - YYYY-MM-DD - Batch`.
-   - Write headers row + 300 data rows. Columns in order: Company, Full Name, Email, First Name.
+   - Write headers row + 400 data rows. Columns in order: Company, Full Name, Email, First Name.
    - Share it with `user.email` (role: `writer`) via Drive API.
    - Optionally move it to a per-user folder (nice-to-have; skip for v1).
 6. **Commit state** (only after sheet creation succeeds):
-   - `pointer += 300`
+   - `pointer += 400`
    - `cooldown:<pin>` = `now + 12h`
 7. Return `{ ok: true, url: sheet.webViewLink }`.
 
@@ -168,7 +168,7 @@ SSH-free: Vercel dashboard → Storage → your KV → find `cooldown:<pin>` →
 
 ## 12. Running out of pool
 
-26,000 ÷ 300 ÷ 3 users ≈ 28 days until exhausted. When it happens, you get the "Pool empty" error, edit `lib/emails.ts` to append more rows, push, Vercel redeploys, done.
+26,000 ÷ 400 ÷ 3 users ≈ 21 days until exhausted. When it happens, you get the "Pool empty" error, edit `lib/emails.ts` to append more rows, push, Vercel redeploys, done.
 
 ---
 

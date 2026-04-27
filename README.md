@@ -1,6 +1,6 @@
 # emailsendingasa
 
-Private tool. Three users enter their pin, hit a button, and get a fresh Google Sheet of 300 emails from a pre-uploaded pool of ~26k. 12-hour cooldown. No email is ever handed out twice.
+Private tool. Three users enter their pin, hit a button, and get a fresh Google Sheet of 400 emails from a pre-uploaded pool of ~26k. 12-hour cooldown. No email is ever handed out twice.
 
 ## Users
 
@@ -91,7 +91,7 @@ Edit `lib/users.ts` → commit → push. Vercel redeploys.
 
 ### "Rewind" the last batch (emergency)
 
-Vercel dashboard → Storage → KV → edit `pointer` → subtract 300. The old batch sheet still exists in Drive (delete manually if you want) but the same rows will now go out again.
+Vercel dashboard → Storage → KV → edit `pointer` → subtract 400. The old batch sheet still exists in Drive (delete manually if you want) but the same rows will now go out again.
 
 ## Local dev
 
@@ -110,7 +110,7 @@ Visit http://localhost:3000.
 - Vercel KV — 4 keys: `pointer`, `cooldown:7722`, `cooldown:3490`, `cooldown:5514`
 - `/` — pin entry, sets a signed cookie via iron-session
 - `/dashboard` — shows cooldown status + the button
-- `/api/batch` — checks cooldown → slices 300 rows → creates Google Sheet via service account → shares it with user's Gmail → advances pointer → sets cooldown → returns URL
+- `/api/batch` — checks cooldown → slices 400 rows → creates Google Sheet via service account → shares it with user's Gmail → advances pointer → sets cooldown → returns URL
 - The service account creates sheets in its own Drive and then shares them. No OAuth flow for users.
 
 ## What's NOT here (by design)

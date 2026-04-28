@@ -12,4 +12,11 @@ node_modules
 
 # never commit raw email CSVs — generated lib/emails.ts is what we ship
 *.csv
+# ...except the migration export bundle and the original master sheet,
+# which we DO want in the repo for the CRM handoff
+!export/*.csv
+!proxi Master Sheet - master.csv
+
+# tsbuildinfo is a local incremental-compile cache, not source
+tsconfig.tsbuildinfo
 
